@@ -26,12 +26,13 @@ conversion :: LamTerm -> Term
 conversion lt = conversionAux lt (M.empty)
 
 
+-- ? Podemos usar un Map?
 type BoundedVars = M.Map String Int
 
 
 conversionAux :: LamTerm -> BoundedVars -> Term
 conversionAux (LVar x)      idxs  = case M.lookup x idxs of 
-                                      Nothing -> Free x
+                                      Nothing -> Free (Global x)
                                       Just i  -> Bound i
 
 conversionAux (LApp lt1 lt2) idxs = (conversionAux lt1 idxs) :@: 
@@ -102,7 +103,7 @@ notfoundError n = err $ show n ++ " no está definida."
 -- infiere el tipo de un término a partir de un entorno local de variables y un entorno global
 infer' :: Context -> NameEnv Value Type -> Term -> Either String Type
 infer' c _ (Bound i) = ret (c !! i)
-infer' _ e (Free  n) = case lookup n e of
+infer' _ e (Free  n) = case Prelude.lookup n e of --? Preguntar si podemos poner Prelude.
   Nothing     -> notfoundError n
   Just (_, t) -> ret t
 infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
