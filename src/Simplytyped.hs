@@ -15,6 +15,7 @@ import           Prelude                 hiding ( (>>=) )
 import           Text.PrettyPrint.HughesPJ      ( render )
 import           PrettyPrinter
 import           Common
+import           Data.Map.Strict         as M
 
 -----------------------
 -- conversion
@@ -22,8 +23,24 @@ import           Common
 
 -- conversion a términos localmente sin nombres
 conversion :: LamTerm -> Term
-conversion = undefined
+conversion lt = conversionAux lt (M.empty)
 
+
+type BoundedVars = M.Map String Int
+
+
+conversionAux :: LamTerm -> BoundedVars -> Term
+conversionAux (LVar x)      idxs  = case M.lookup x idxs of 
+                                      Nothing -> Free x
+                                      Just i  -> Bound i
+
+conversionAux (LApp lt1 lt2) idxs = (conversionAux lt1 idxs) :@: 
+                                    (conversionAux lt2 idxs)  
+
+conversionAux (LAbs x t lt) idxs  = let
+                                       idxs'  = M.map succ idxs
+                                       idxs'' = M.insert x 0 idxs'
+                                    in Lam t (conversionAux lt idxs'') 
 ----------------------------
 --- evaluador de términos
 ----------------------------
