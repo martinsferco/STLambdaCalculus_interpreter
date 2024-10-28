@@ -42,29 +42,47 @@ conversionAux (LAbs x t lt) idxs  = let
                                        idxs'  = M.map succ idxs
                                        idxs'' = M.insert x 0 idxs'
                                     in Lam t (conversionAux lt idxs'') 
+
+
+
+conversionAux (LLet x lt1 lt2) idxs = let 
+                                          idxs'  = M.map succ idxs
+                                          idxs'' = M.insert x 0 idxs' 
+                                      in  Let (conversionAux lt1 idxs) (conversionAux lt2 idxs'')  
+                                          
+
+-- (\x -> let y = 3 in x) 4
+-- conversionAux (LLet x lt1 lt2) idxs = case M.lookup x idxs of 
+--                                         Nothing -> Let (conversionAux lt1 idxs'') lt2'  -- Si esta libre, desplazo todos en 1 y pongo a la variable con indice 0
+--                                         _       -> conversionAux lt2 idxs               -- Si esta ligada, no hago nada
+--                                       where
+--                                        idxs'  = M.map succ idxs
+--                                        idxs'' = M.insert x 0 idxs'
+--                                        lt2'    = conversionAux lt2 idxs''
+                                        
+
 ----------------------------
 --- evaluador de términos
 ----------------------------
 
 -- substituye una variable por un término en otro término
--- cant abstraccione
--- termino a sustituir
--- donde sustituimos
 sub :: Int -> Term -> Term -> Term
 sub i t (Bound j) | i == j    = t
 sub _ _ (Bound j) | otherwise = Bound j
 sub _ _ (Free n   )           = Free n
 sub i t (u   :@: v)           = sub i t u :@: sub i t v
 sub i t (Lam t'  u)           = Lam t' (sub (i + 1) t u)
+-- sub i t (Let t'  u)           = Let t'
 
--- convierte un valor en el término equivalente
+
+
 quote :: Value -> Term
 quote (VLam t f) = Lam t f
+
 
 -- evalúa un término en un entorno dado
 eval :: NameEnv Value Type -> Term -> Value
 
---? Con las bound no hacemos nada?
 
 eval ne (Free x) = case Prelude.lookup x ne of
                       Nothing     -> error "variable not in name enviroment"
@@ -79,7 +97,17 @@ eval ne ((Lam t f) :@: t2) = let t2' = eval ne t2
 eval ne (t1 :@: t2) = let t1' = eval ne t1
                       in  eval ne (quote t1' :@: t2)
 
+
+
+eval ne (Let (Lam t f) t2) = let tsub2 = sub 0 (Lam t f) t2
+                             in  eval ne tsub2
+
+eval ne (Let t1 t2) = let t1' = eval ne t1
+                      in  eval ne (Let (quote t1') t2)
+
 eval _ (Lam t f) = VLam t f
+
+
 
 ----------------------
 --- type checker
@@ -116,7 +144,6 @@ notfunError t1 = err $ render (printType t1) ++ " no puede ser aplicado."
 notfoundError :: Name -> Either String Type
 notfoundError n = err $ show n ++ " no está definida."
 
--- ?? Podemos usar el Prelude.
 -- infiere el tipo de un término a partir de un entorno local de variables y un entorno global
 infer' :: Context -> NameEnv Value Type -> Term -> Either String Type
 infer' c _ (Bound i) = ret (c !! i)
@@ -127,6 +154,7 @@ infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
   case tt of
     FunT t1 t2 -> if (tu == t1) then ret t2 else matchError t1 tu
     _          -> notfunError tt
-infer' c e (Lam t u) = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
 
+infer' c e (Lam t u)   = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
 
+infer' c e (Let t u) = infer' c e t >>= \tt -> infer' (tt : c) e u >>= \tu -> ret tu
