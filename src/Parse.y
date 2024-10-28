@@ -24,12 +24,21 @@ import Data.Char
     '->'    { TArrow }
     VAR     { TVar $$ }
     TYPEE   { TTypeE }
+    TYPEN   { TTypeN }
     DEF     { TDef }
+    LET     { TLet }
+    IN      { TIn }
+    SUC     { TSuc }
+    ZERO    { TZero }
+    REC     { TRec }
     
 
 %left '=' 
 %right '->'
-%right '\\' '.' 
+%right '\\' '.' LET IN 
+%right REC
+%right SUC
+
 
 %%
 
@@ -39,6 +48,7 @@ Defexp  : DEF VAR '=' Exp              { Def $2 $4 }
 
 Exp     :: { LamTerm }
         : '\\' VAR ':' Type '.' Exp    { LAbs $2 $4 $6 }
+        | LET VAR '=' Exp IN Exp       { LLet $2 $4 $6 } 
         | NAbs                         { $1 }
         
 NAbs    :: { LamTerm }
@@ -87,6 +97,7 @@ happyError = \ s i -> Failed $ "Línea "++(show (i::LineNumber))++": Error de pa
 
 data Token = TVar String
                | TTypeE
+               | TTypeN
                | TDef
                | TAbs
                | TDot
@@ -96,6 +107,11 @@ data Token = TVar String
                | TArrow
                | TEquals
                | TEOF
+               | TLet
+               | TIn
+               | TSuc
+               | TZero
+               | TRec
                deriving Show
 
 ----------------------------------
@@ -121,6 +137,11 @@ lexer cont s = case s of
                     where lexVar cs = case span isAlpha cs of
                               ("E",rest)    -> cont TTypeE rest
                               ("def",rest)  -> cont TDef rest
+                              ("let", rest) -> cont TLet rest
+                              ("in", rest)  -> cont TIn rest
+                              ("suc", rest) -> cont TSuc rest
+                              ("0", rest)   -> cont TZero rest
+                              ("R", rest)   -> cont TRec rest
                               (var,rest)    -> cont (TVar var) rest
                           consumirBK anidado cl cont s = case s of
                               ('-':('-':cs)) -> consumirBK anidado cl cont $ dropWhile ((/=) '\n') cs
