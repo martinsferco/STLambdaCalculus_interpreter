@@ -1,0 +1,1 @@
+Ack = \m : Nat . R suc (\f : (Nat -> Nat) -> Nat -> (Nat -> Nat) . \x : Nat . \n : Nat . R (f 1) (\r Nat -> Nat -> Nat: . \i : Nat. f r) n) m 
