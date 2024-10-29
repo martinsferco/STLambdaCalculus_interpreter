@@ -26,7 +26,6 @@ conversion :: LamTerm -> Term
 conversion lt = conversionAux lt (M.empty)
 
 
--- ? Podemos usar un Map?
 type BoundedVars = M.Map String Int
 
 
@@ -83,27 +82,23 @@ quote (VLam t f) = Lam t f
 -- evalúa un término en un entorno dado
 eval :: NameEnv Value Type -> Term -> Value
 
-
+eval _ (Bound j) = error "error: evaluating bounded variable"
 eval ne (Free x) = case Prelude.lookup x ne of
                       Nothing     -> error "variable not in name enviroment"
                       Just (v, t) -> v 
 
-eval ne ((Lam t f) :@: (Lam t' f')) = let tsub = sub 0 (Lam t' f') f
-                                      in  eval ne tsub 
+eval ne (t1 :@: t2) = let
+                        (Lam t f) = quote (eval ne t1)
+                        t2'       = quote (eval ne t2')
+                        tsub      = sub 0 t2' f 
+                      
+                      in eval ne tsub
 
-eval ne ((Lam t f) :@: t2) = let t2' = eval ne t2
-                             in eval ne ((Lam t f) :@: quote t2')
-
-eval ne (t1 :@: t2) = let t1' = eval ne t1
-                      in  eval ne (quote t1' :@: t2)
-
-
-
-eval ne (Let (Lam t f) t2) = let tsub2 = sub 0 (Lam t f) t2
-                             in  eval ne tsub2
-
-eval ne (Let t1 t2) = let t1' = eval ne t1
-                      in  eval ne (Let (quote t1') t2)
+eval ne (Let t1 t2) = let
+                        t1'  = quote (eval ne t1)
+                        tsub = sub 0 t1' t2
+                      in
+                        eval ne tsub
 
 eval _ (Lam t f) = VLam t f
 
@@ -156,5 +151,4 @@ infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
     _          -> notfunError tt
 
 infer' c e (Lam t u)   = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
-
 infer' c e (Let t u) = infer' c e t >>= \tt -> infer' (tt : c) e u >>= \tu -> ret tu
