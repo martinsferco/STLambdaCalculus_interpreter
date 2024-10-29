@@ -42,24 +42,11 @@ conversionAux (LAbs x t lt) idxs  = let
                                        idxs'' = M.insert x 0 idxs'
                                     in Lam t (conversionAux lt idxs'') 
 
-
-
 conversionAux (LLet x lt1 lt2) idxs = let 
                                           idxs'  = M.map succ idxs
                                           idxs'' = M.insert x 0 idxs' 
                                       in  Let (conversionAux lt1 idxs) (conversionAux lt2 idxs'')  
                                           
-
--- (\x -> let y = 3 in x) 4
--- conversionAux (LLet x lt1 lt2) idxs = case M.lookup x idxs of 
---                                         Nothing -> Let (conversionAux lt1 idxs'') lt2'  -- Si esta libre, desplazo todos en 1 y pongo a la variable con indice 0
---                                         _       -> conversionAux lt2 idxs               -- Si esta ligada, no hago nada
---                                       where
---                                        idxs'  = M.map succ idxs
---                                        idxs'' = M.insert x 0 idxs'
---                                        lt2'    = conversionAux lt2 idxs''
-                                        
-
 ----------------------------
 --- evaluador de términos
 ----------------------------
@@ -71,7 +58,7 @@ sub _ _ (Bound j) | otherwise = Bound j
 sub _ _ (Free n   )           = Free n
 sub i t (u   :@: v)           = sub i t u :@: sub i t v
 sub i t (Lam t'  u)           = Lam t' (sub (i + 1) t u)
--- sub i t (Let t'  u)           = Let t'
+sub i t (Let t1  t2)          = Let (sub i t t1) (sub (i + 1) t t2) 
 
 
 
@@ -81,17 +68,16 @@ quote (VLam t f) = Lam t f
 
 -- evalúa un término en un entorno dado
 eval :: NameEnv Value Type -> Term -> Value
-
 eval _ (Bound j) = error "error: evaluating bounded variable"
 eval ne (Free x) = case Prelude.lookup x ne of
-                      Nothing     -> error "variable not in name enviroment"
+                      Nothing     -> error "error: variable not in name enviroment"
                       Just (v, t) -> v 
 
+eval _ (Lam t f  ) = VLam t f
 eval ne (t1 :@: t2) = let
                         (Lam t f) = quote (eval ne t1)
                         t2'       = quote (eval ne t2')
                         tsub      = sub 0 t2' f 
-                      
                       in eval ne tsub
 
 eval ne (Let t1 t2) = let
@@ -100,7 +86,6 @@ eval ne (Let t1 t2) = let
                       in
                         eval ne tsub
 
-eval _ (Lam t f) = VLam t f
 
 
 
@@ -151,4 +136,4 @@ infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
     _          -> notfunError tt
 
 infer' c e (Lam t u)   = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
-infer' c e (Let t u) = infer' c e t >>= \tt -> infer' (tt : c) e u >>= \tu -> ret tu
+infer' c e (Let t1 t2) = infer' c e t1 >>= \tt1 -> infer' (tt1 : c) e t2 >>= \tt2 -> ret tt2
