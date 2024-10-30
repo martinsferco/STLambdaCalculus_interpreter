@@ -54,6 +54,15 @@ conversionAux (LRec t1 t2 t3) idxs  = Rec t1' t2' t3'
                                         t1' = conversionAux t1 idxs
                                         t2' = conversionAux t2 idxs
                                         t3' = conversionAux t3 idxs
+
+conversionAux LNil idxs = Nil
+conversionAux (LCons t1 t2) idxs = Cons (conversionAux t1 idxs) (conversionAux t2 idxs)
+conversionAux (LRecL t1 t2 t3) idxs = RecL t1' t2' t3'
+                                      where
+                                        t1' = conversionAux t1 idxs
+                                        t2' = conversionAux t2 idxs
+                                        t3' = conversionAux t3 idxs
+
 ----------------------------
 
 --- evaluador de términos
@@ -67,27 +76,30 @@ sub _ _ (Free n   )           = Free n
 sub i t (u   :@: v)           = sub i t u :@: sub i t v
 sub i t (Lam t'  u)           = Lam t' (sub (i + 1) t u)
 sub i t (Let t1  t2)          = Let (sub i t t1) (sub (i + 1) t t2) 
-sub i t Zero                  = Zero 
+sub _ _ Zero                  = Zero 
 sub i t (Suc t')              = Suc (sub i t t')
 sub i t (Rec t1 t2 t3)        = Rec t1' t2' t3'
                                 where 
                                   t1' = sub i t t1
                                   t2' = sub i t t2
                                   t3' = sub i t t3
-
+sub _ _ Nil                   = Nil
+sub i t (Cons t1 t2)          = Cons (sub i t t1) (sub i t t2)
+sub i t (RecL t1 t2 t3)       = RecL (sub i t t1) (sub i t t2) (sub i t t3)
 
 quote :: Value -> Term
 quote (VLam t f) = Lam t f
 quote (VNum nv)  = quoteN nv
 quote (VList lv) = quoteL lv
 
--- ? Hace realmente falta?
 quoteN :: NumVal -> Term
 quoteN NZero     = Zero
 quoteN (NSuc nv) = Suc $ quoteN nv
 
 quoteL :: ListVal -> Term
-quoteL = undefined
+quoteL VNil          = Nil
+quoteL (VCons nv lv) = Cons (quoteN nv) (quoteL lv) 
+
 
 -- evalúa un término en un entorno dado
 eval :: NameEnv Value Type -> Term -> Value
@@ -113,11 +125,23 @@ eval ne (Let t1 t2) = let
 
 eval _ Zero            = VNum NZero
 eval ne (Suc t)        = VNum (NSuc n) where (VNum n) = eval ne t
-eval ne (Rec t1 t2 t3) = let v3 = eval ne t3
-                         in case v3 of
+eval ne (Rec t1 t2 t3) = case eval ne t3 of
                             VNum NZero     -> eval ne t1
-                            VNum (NSuc nv) -> eval ne ((t2 :@: Rec t1 t2 t) :@: t) 
+                            VNum (NSuc nv) -> eval ne (t2 :@: Rec t1 t2 t :@: t) 
                                               where t = quoteN nv
+
+eval _ Nil              = VList VNil
+eval ne (Cons t1 t2)    = let
+                            (VNum n)   = eval ne t1
+                            (VList lv) = eval ne t2
+                          in VList (VCons n lv)
+
+eval ne (RecL t1 t2 t3) = case eval ne t3 of
+                             VList VNil          -> eval ne t1
+                             VList (VCons nv lv) -> eval ne (t2 :@: tn :@: tl :@: RecL t1 t2 tl)
+                                                    where tn = quoteN nv
+                                                          tl = quoteL lv
+
 ----------------------
 --- type checker
 -----------------------
@@ -150,8 +174,8 @@ matchError t1 t2 =
 notfunError :: Type -> Either String Type
 notfunError t1 = err $ render (printType t1) ++ " no puede ser aplicado."
 
-notTwoArgError :: Type -> Either String Type
-notTwoArgError t1 = err $ render (printType t1) ++ " no puede ser aplicado dos veces."
+notKArgError :: Type -> Int -> Either String Type
+notKArgError t1 k = err $ render (printType t1) ++ " no puede ser aplicado " ++ show k ++ " veces."
 
 notfoundError :: Name -> Either String Type
 notfoundError n = err $ show n ++ " no está definida."
@@ -171,18 +195,41 @@ infer' c e (Lam t u)   = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
 infer' c e (Let t1 t2) = infer' c e t1 >>= \tt1 -> infer' (tt1 : c) e t2 >>= \tt2 -> ret tt2
 
 infer' c e Zero        = ret NatT
-infer' c e (Suc t)    = infer' c e t >>= \tt -> 
+infer' c e (Suc t) = infer' c e t >>= \tt ->
   case tt of 
     NatT -> ret NatT
-    _    -> matchError NatT tt
-
+    tt   -> matchError NatT tt
 
 infer' c e (Rec t1 t2 t3) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
   infer' c e t3 >>= \tt3 ->
     if (tt3 /= NatT) then matchError NatT tt3  
                      else case tt2 of 
-                      (FunT  x (FunT y z)) -> if (x == tt1 && y == NatT && z == tt1)
+                        (FunT  x (FunT y z)) -> if (x == tt1 && y == NatT && z == tt1)
                                                 then ret tt1
-                                                else matchError (FunT tt1 (FunT NatT tt1)) tt2     
-                      _                    -> notTwoArgError tt2
+                                                else matchError t tt2     
+                          where t = (FunT tt1 (FunT NatT tt1))
+
+                        _                    -> notKArgError tt2 2
+
+
+
+infer' c e Nil          = ret ListT
+infer' c e (Cons t1 t2) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
+  case tt1 of 
+    NatT -> if (tt2 == ListT) then ret tt2 else matchError ListT tt2
+
+    _    -> matchError NatT tt1 
+
+
+infer' c e (RecL t1 t2 t3) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
+  infer' c e t3 >>= \tt3 -> 
+    if (tt3 /= ListT) then matchError ListT tt3
+    
+    else case tt2 of
+      (FunT x (FunT y (FunT z r))) -> if match then ret tt1 else matchError t tt2
+  
+        where match = (x == NatT) && (y == ListT) && (z == tt1) && (r == tt1)
+              t = FunT NatT (FunT ListT (FunT tt1 tt1))
+
+      _ -> notKArgError tt2 3
 
