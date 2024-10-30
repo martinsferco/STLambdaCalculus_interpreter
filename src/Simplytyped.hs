@@ -23,45 +23,45 @@ import           Data.Map.Strict         as M
 
 -- conversion a términos localmente sin nombres
 conversion :: LamTerm -> Term
-conversion lt = conversionAux lt (M.empty)
+conversion = conversionAux (M.empty)  
 
 
 type BoundedVars = M.Map String Int
 
 
-conversionAux :: LamTerm -> BoundedVars -> Term
-conversionAux (LVar x)      idxs  = case M.lookup x idxs of 
+conversionAux :: BoundedVars -> LamTerm -> Term
+conversionAux idxs (LVar x)        = case M.lookup x idxs of 
                                       Nothing -> Free (Global x)
                                       Just i  -> Bound i
 
-conversionAux (LApp lt1 lt2) idxs = (conversionAux lt1 idxs) :@: 
-                                    (conversionAux lt2 idxs)  
+conversionAux idxs (LApp lt1 lt2)  = (conversionAux idxs lt1 ) :@: 
+                                     (conversionAux idxs lt2 )  
 
-conversionAux (LAbs x t lt) idxs  = let
+conversionAux idxs (LAbs x t lt)  = let
                                        idxs'  = M.map succ idxs
                                        idxs'' = M.insert x 0 idxs'
-                                    in Lam t (conversionAux lt idxs'') 
+                                    in Lam t (conversionAux idxs'' lt) 
 
-conversionAux (LLet x lt1 lt2) idxs = let 
+conversionAux idxs (LLet x lt1 lt2) = let 
                                           idxs'  = M.map succ idxs
                                           idxs'' = M.insert x 0 idxs' 
-                                      in  Let (conversionAux lt1 idxs) (conversionAux lt2 idxs'')  
+                                      in  Let (conversionAux idxs lt1) (conversionAux idxs'' lt2)  
 
-conversionAux (LZero) idxs          = Zero
-conversionAux (LSuc t) idxs         = Suc (conversionAux t idxs)
-conversionAux (LRec t1 t2 t3) idxs  = Rec t1' t2' t3' 
+conversionAux idxs (LZero)           = Zero
+conversionAux idxs (LSuc t)          = Suc (conversionAux idxs t)
+conversionAux idxs (LRec t1 t2 t3)   = Rec t1' t2' t3' 
                                       where 
-                                        t1' = conversionAux t1 idxs
-                                        t2' = conversionAux t2 idxs
-                                        t3' = conversionAux t3 idxs
+                                        t1' = conversionAux idxs t1 
+                                        t2' = conversionAux idxs t2 
+                                        t3' = conversionAux idxs t3 
 
-conversionAux LNil idxs = Nil
-conversionAux (LCons t1 t2) idxs = Cons (conversionAux t1 idxs) (conversionAux t2 idxs)
-conversionAux (LRecL t1 t2 t3) idxs = RecL t1' t2' t3'
+conversionAux idxs LNil  = Nil
+conversionAux idxs (LCons t1 t2) = Cons (conversionAux idxs t1) (conversionAux idxs t2)
+conversionAux idxs (LRecL t1 t2 t3) = RecL t1' t2' t3'
                                       where
-                                        t1' = conversionAux t1 idxs
-                                        t2' = conversionAux t2 idxs
-                                        t3' = conversionAux t3 idxs
+                                        t1' = conversionAux idxs t1 
+                                        t2' = conversionAux idxs t2 
+                                        t3' = conversionAux idxs t3 
 
 ----------------------------
 
