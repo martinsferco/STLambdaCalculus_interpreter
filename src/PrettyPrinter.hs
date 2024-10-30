@@ -46,6 +46,13 @@ pp ii vs (Let t1 t2) =
     <+> text "in"
     <+> pp (ii + 1) vs t2
 
+pp _ _ Zero      = text "0"
+pp ii vs (Suc t) = text "suc" <+> pp ii vs t
+pp ii vs (Rec t1 t2 t3) = 
+  text "R" 
+    <+> parens (pp ii vs t1)
+    <+> parens (pp ii vs t2)
+    <+> parens (pp ii vs t3)
 
 isLam :: Term -> Bool
 isLam (Lam _ _) = True
@@ -58,6 +65,7 @@ isApp _         = False
 -- pretty-printer de tipos
 printType :: Type -> Doc
 printType EmptyT = text "E"
+printType NatT   = text "Nat"
 printType (FunT t1 t2) =
   sep [parensIf (isFun t1) (printType t1), text "->", printType t2]
 
@@ -72,6 +80,9 @@ fv (Free  (Global n)) = [n]
 fv (t   :@: u       ) = fv t ++ fv u
 fv (Lam _   u       ) = fv u
 fv (Let t1 t2       ) = fv t1 ++ fv t2 
+fv Zero               = []
+fv (Suc t)            = fv t
+fv (Rec t1 t2 t3)     = fv t1 ++ fv t2 ++ fv t3
 
 ---
 printTerm :: Term -> Doc
