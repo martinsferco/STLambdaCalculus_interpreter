@@ -47,12 +47,25 @@ pp ii vs (Let t1 t2) =
     <+> pp (ii + 1) vs t2
 
 pp _ _ Zero      = text "0"
-pp ii vs (Suc t) = text "suc" <+> pp ii vs t
+pp ii vs (Suc t) = text "suc" <+> parensIf (not $ isZero t) (pp ii vs t)
 pp ii vs (Rec t1 t2 t3) = 
   text "R" 
-    <+> parensIf (not $ isZero t1) (pp ii vs t1)
-    <+> parensIf (not $ isZero t2) (pp ii vs t2)
-    <+> parensIf (not $ isZero t3) (pp ii vs t3)
+    <+> parensIf (needParens t1) (pp ii vs t1)
+    <+> parensIf (needParens t2) (pp ii vs t2)
+    <+> parensIf (needParens t3) (pp ii vs t3)
+
+pp _ _ Nil       = text "nil"
+pp ii vs (Cons t1 t2) = 
+  text "cons" 
+    <+> parensIf (needParens t1) (pp ii vs t1)
+    <+> parensIf (needParens t2) (pp ii vs t2)
+pp ii vs (RecL t1 t2 t3) =
+  text "RL" 
+    <+> parensIf (needParens t1) (pp ii vs t1)
+    <+> parensIf (needParens t2) (pp ii vs t2)
+    <+> parensIf (needParens t3) (pp ii vs t3)
+
+
 
 isZero :: Term -> Bool 
 isZero Zero = True
@@ -62,14 +75,27 @@ isLam :: Term -> Bool
 isLam (Lam _ _) = True
 isLam _         = False
 
+isVar :: Term -> Bool
+isVar (Bound _) = True
+isVar (Free _)  = True
+isVar _         = False
+
+isNil :: Term -> Bool
+isNil Nil = True
+isNil _   = False
+
 isApp :: Term -> Bool
 isApp (_ :@: _) = True
 isApp _         = False
+
+needParens :: Term -> Bool
+needParens t = not (isZero t || isNil t || isVar t)
 
 -- pretty-printer de tipos
 printType :: Type -> Doc
 printType EmptyT = text "E"
 printType NatT   = text "Nat"
+printTerm ListT  = text "List Nat"
 printType (FunT t1 t2) =
   sep [parensIf (isFun t1) (printType t1), text "->", printType t2]
 
@@ -87,6 +113,9 @@ fv (Let t1 t2       ) = fv t1 ++ fv t2
 fv Zero               = []
 fv (Suc t)            = fv t
 fv (Rec t1 t2 t3)     = fv t1 ++ fv t2 ++ fv t3
+fv Nil                = []
+fv (Cons t1 t2)       = fv t1 ++ fv t2
+fv (RecL t1 t2 t3)    = fv t1 ++ fv t2 ++ fv t3
 
 ---
 printTerm :: Term -> Doc
