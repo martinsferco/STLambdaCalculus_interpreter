@@ -50,9 +50,13 @@ pp _ _ Zero      = text "0"
 pp ii vs (Suc t) = text "suc" <+> pp ii vs t
 pp ii vs (Rec t1 t2 t3) = 
   text "R" 
-    <+> parens (pp ii vs t1)
-    <+> parens (pp ii vs t2)
-    <+> parens (pp ii vs t3)
+    <+> parensIf (not $ isZero t1) (pp ii vs t1)
+    <+> parensIf (not $ isZero t2) (pp ii vs t2)
+    <+> parensIf (not $ isZero t3) (pp ii vs t3)
+
+isZero :: Term -> Bool 
+isZero Zero = True
+isZero _    = False
 
 isLam :: Term -> Bool
 isLam (Lam _ _) = True
