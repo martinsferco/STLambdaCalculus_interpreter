@@ -25,18 +25,24 @@ import Data.Char
     VAR     { TVar $$ }
     TYPEE   { TTypeE }
     TYPEN   { TTypeN }
+    TYPEL   { TTypeL }
     DEF     { TDef }
     LET     { TLet }
     IN      { TIn }
     SUC     { TSuc }
     ZERO    { TZero }
     REC     { TRec }
+    NIL     { TNil }
+    CONS    { TCons }
+    RECL    { TRecL }
     
 
 %left '=' 
 %right '->'
 %right '\\' '.' LET IN 
 %right REC
+%right RECL
+%right CONS
 %right SUC
 
 %%
@@ -50,6 +56,8 @@ Exp     :: { LamTerm }
         | LET VAR '=' Exp IN Exp       { LLet $2 $4 $6 } 
         | SUC Exp                      { LSuc $2 }
         | REC Atom Atom Exp            { LRec $2 $3 $4 }
+        | CONS Atom Exp                { LCons $2 $3 }
+        | RECL Atom Atom Exp           { LRecL $2 $3 $4 }
         | NAbs                         { $1 }
         
 NAbs    :: { LamTerm }
@@ -60,9 +68,11 @@ Atom    :: { LamTerm }
         : VAR                          { LVar $1 }  
         | '(' Exp ')'                  { $2 }
         | ZERO                         { LZero }
+        | NIL                          { LNil }
 
 Type    : TYPEE                        { EmptyT }
         | TYPEN                        { NatT }
+        | TYPEL TYPEN                  { ListT }
         | Type '->' Type               { FunT $1 $3 }
         | '(' Type ')'                 { $2 }
 
@@ -101,6 +111,7 @@ happyError = \ s i -> Failed $ "Línea "++(show (i::LineNumber))++": Error de pa
 data Token = TVar String
                | TTypeE
                | TTypeN
+               | TTypeL
                | TDef
                | TAbs
                | TDot
@@ -115,6 +126,9 @@ data Token = TVar String
                | TSuc
                | TZero
                | TRec
+               | TNil
+               | TCons
+               | TRecL
                deriving Show
 
 ----------------------------------
@@ -139,14 +153,18 @@ lexer cont s = case s of
                     unknown -> \line -> Failed $ 
                      "Línea "++(show line)++": No se puede reconocer "++(show $ take 10 unknown)++ "..."
                     where lexVar cs = case span isAlpha cs of
-                              ("E",rest)    -> cont TTypeE rest
-                              ("Nat", rest) -> cont TTypeN rest
-                              ("def",rest)  -> cont TDef rest
-                              ("let", rest) -> cont TLet rest
-                              ("in", rest)  -> cont TIn rest
-                              ("suc", rest) -> cont TSuc rest
-                              ("R", rest)   -> cont TRec rest
-                              (var,rest)    -> cont (TVar var) rest
+                              ("E",rest)     -> cont TTypeE rest
+                              ("Nat", rest)  -> cont TTypeN rest   
+                              ("List", rest) -> cont TTypeL rest  
+                              ("def",rest)   -> cont TDef rest
+                              ("let", rest)  -> cont TLet rest
+                              ("in", rest)   -> cont TIn rest
+                              ("suc", rest)  -> cont TSuc rest
+                              ("R", rest)    -> cont TRec rest
+                              ("nil", rest)  -> cont TNil rest
+                              ("cons", rest) -> cont TCons rest
+                              ("RL", rest)   -> cont TRecL rest
+                              (var,rest)     -> cont (TVar var) rest
                           consumirBK anidado cl cont s = case s of
                               ('-':('-':cs)) -> consumirBK anidado cl cont $ dropWhile ((/=) '\n') cs
                               ('{':('-':cs)) -> consumirBK (anidado+1) cl cont cs	
