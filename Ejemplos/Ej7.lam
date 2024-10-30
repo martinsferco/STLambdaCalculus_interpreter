@@ -1,0 +1,4 @@
+def map    = \f: Nat -> Nat.\xs : List Nat. RL nil (\n:Nat.\lv:List Nat.\r:List Nat. cons (f n) r) xs
+def mapS   = map suc
+def sumPos = \xs:List Nat. RL nil (\n:Nat.\lv:List Nat.\r:List Nat. cons (suc n) (mapS r)) xs
+
