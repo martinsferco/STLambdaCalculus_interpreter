@@ -46,8 +46,16 @@ conversionAux (LLet x lt1 lt2) idxs = let
                                           idxs'  = M.map succ idxs
                                           idxs'' = M.insert x 0 idxs' 
                                       in  Let (conversionAux lt1 idxs) (conversionAux lt2 idxs'')  
-                                          
+
+conversionAux (LZero) idxs          = Zero
+conversionAux (LSuc t) idxs         = Suc (conversionAux t idxs)
+conversionAux (LRec t1 t2 t3) idxs  = Rec t1' t2' t3' 
+                                      where 
+                                        t1' = conversionAux t1 idxs
+                                        t2' = conversionAux t2 idxs
+                                        t3' = conversionAux t3 idxs
 ----------------------------
+
 --- evaluador de términos
 ----------------------------
 
@@ -59,12 +67,27 @@ sub _ _ (Free n   )           = Free n
 sub i t (u   :@: v)           = sub i t u :@: sub i t v
 sub i t (Lam t'  u)           = Lam t' (sub (i + 1) t u)
 sub i t (Let t1  t2)          = Let (sub i t t1) (sub (i + 1) t t2) 
-
+sub i t Zero                  = Zero 
+sub i t (Suc t')              = Suc (sub i t t')
+sub i t (Rec t1 t2 t3)        = Rec t1' t2' t3'
+                                where 
+                                  t1' = sub i t t1
+                                  t2' = sub i t t2
+                                  t3' = sub i t t3
 
 
 quote :: Value -> Term
 quote (VLam t f) = Lam t f
+quote (VNum nv)  = quoteN nv
+quote (VList lv) = quoteL lv
 
+-- ? Hace realmente falta?
+quoteN :: NumVal -> Term
+quoteN NZero     = Zero
+quoteN (NSuc nv) = Suc $ quoteN nv
+
+quoteL :: ListVal -> Term
+quoteL = undefined
 
 -- evalúa un término en un entorno dado
 eval :: NameEnv Value Type -> Term -> Value
@@ -74,9 +97,10 @@ eval ne (Free x) = case Prelude.lookup x ne of
                       Just (v, t) -> v 
 
 eval _ (Lam t f  ) = VLam t f
+
 eval ne (t1 :@: t2) = let
                         (Lam t f) = quote (eval ne t1)
-                        t2'       = quote (eval ne t2')
+                        t2'       = quote (eval ne t2)
                         tsub      = sub 0 t2' f 
                       in eval ne tsub
 
@@ -87,8 +111,13 @@ eval ne (Let t1 t2) = let
                         eval ne tsub
 
 
-
-
+eval _ Zero            = VNum NZero
+eval ne (Suc t)        = VNum (NSuc n) where (VNum n) = eval ne t
+eval ne (Rec t1 t2 t3) = let v3 = eval ne t3
+                         in case v3 of
+                            VNum NZero     -> eval ne t1
+                            VNum (NSuc nv) -> eval ne ((t2 :@: Rec t1 t2 t) :@: t) 
+                                              where t = quoteN nv
 ----------------------
 --- type checker
 -----------------------
@@ -121,6 +150,9 @@ matchError t1 t2 =
 notfunError :: Type -> Either String Type
 notfunError t1 = err $ render (printType t1) ++ " no puede ser aplicado."
 
+notTwoArgError :: Type -> Either String Type
+notTwoArgError t1 = err $ render (printType t1) ++ " no puede ser aplicado dos veces."
+
 notfoundError :: Name -> Either String Type
 notfoundError n = err $ show n ++ " no está definida."
 
@@ -137,3 +169,20 @@ infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
 
 infer' c e (Lam t u)   = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
 infer' c e (Let t1 t2) = infer' c e t1 >>= \tt1 -> infer' (tt1 : c) e t2 >>= \tt2 -> ret tt2
+
+infer' c e Zero        = ret NatT
+infer' c e (Suc t)    = infer' c e t >>= \tt -> 
+  case tt of 
+    NatT -> ret NatT
+    _    -> matchError NatT tt
+
+
+infer' c e (Rec t1 t2 t3) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
+  infer' c e t3 >>= \tt3 ->
+    if (tt3 /= NatT) then matchError NatT tt3  
+                     else case tt2 of 
+                      (FunT  x (FunT y z)) -> if (x == tt1 && y == NatT && z == tt1)
+                                                then ret tt1
+                                                else matchError (FunT tt1 (FunT NatT tt1)) tt2     
+                      _                    -> notTwoArgError tt2
+
