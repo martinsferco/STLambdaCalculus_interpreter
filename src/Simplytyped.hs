@@ -79,11 +79,7 @@ sub i t (Lam t'  u)           = Lam t' (sub (i + 1) t u)
 sub i t (Let t1  t2)          = Let (sub i t t1) (sub (i + 1) t t2) 
 sub _ _ Zero                  = Zero 
 sub i t (Suc t')              = Suc (sub i t t')
-sub i t (Rec t1 t2 t3)        = Rec t1' t2' t3'
-                                where 
-                                  t1' = sub i t t1
-                                  t2' = sub i t t2
-                                  t3' = sub i t t3
+sub i t (Rec t1 t2 t3)        = Rec (sub i t t1) (sub i t t2) (sub i t t3)
 sub _ _ Nil                   = Nil
 sub i t (Cons t1 t2)          = Cons (sub i t t1) (sub i t t2)
 sub i t (RecL t1 t2 t3)       = RecL (sub i t t1) (sub i t t2) (sub i t t3)
@@ -122,7 +118,6 @@ eval ne (Let t1 t2)     = let
                             tsub = sub 0 t1' t2
                           in
                             eval ne tsub
-
 
 eval _ Zero             = VNum NZero
 eval ne (Suc t)         = VNum (NSuc n) where (VNum n) = eval ne t
