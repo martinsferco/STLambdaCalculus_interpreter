@@ -46,8 +46,10 @@ pp ii vs (Let t1 t2) =
     <+> text "in"
     <+> pp (ii + 1) vs t2
 
-pp _ _ Zero      = text "0"
-pp ii vs (Suc t) = text "suc" <+> parensIf (not $ isZero t) (pp ii vs t)
+pp _ _   s@Zero    = text $ show (sucToNat s)
+pp ii vs s@(Suc t) = if printableNumber s then text $ show (sucToNat s)
+                                          else text "suc"
+                                                <+> parensIf (needParens t) (pp ii vs t)
 pp ii vs (Rec t1 t2 t3) = 
   text "R" 
     <+> parensIf (needParens t1) (pp ii vs t1)
@@ -66,10 +68,10 @@ pp ii vs (RecL t1 t2 t3) =
     <+> parensIf (needParens t3) (pp ii vs t3)
 
 
-
-isZero :: Term -> Bool 
-isZero Zero = True
-isZero _    = False
+isNat :: Term -> Bool 
+isNat Zero    = True
+isNat (Suc _) = True
+isNat _       = False
 
 isLam :: Term -> Bool
 isLam (Lam _ _) = True
@@ -89,7 +91,16 @@ isApp (_ :@: _) = True
 isApp _         = False
 
 needParens :: Term -> Bool
-needParens t = not (isZero t || isNil t || isVar t)
+needParens t = not (isNat t || isNil t || isVar t)
+
+sucToNat :: Term -> Int
+sucToNat Zero    = 0
+sucToNat (Suc t) = sucToNat t + 1
+
+printableNumber :: Term -> Bool
+printableNumber Zero    = True
+printableNumber (Suc t) = printableNumber t
+printableNumber _       = False
 
 -- pretty-printer de tipos
 printType :: Type -> Doc

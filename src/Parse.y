@@ -30,7 +30,7 @@ import Data.Char
     LET     { TLet }
     IN      { TIn }
     SUC     { TSuc }
-    ZERO    { TZero }
+    NAT     { TNat $$ }
     REC     { TRec }
     NIL     { TNil }
     CONS    { TCons }
@@ -67,7 +67,7 @@ NAbs    :: { LamTerm }
 Atom    :: { LamTerm }
         : VAR                          { LVar $1 }  
         | '(' Exp ')'                  { $2 }
-        | ZERO                         { LZero }
+        | NAT                          { natToSuc $1 }
         | NIL                          { LNil }
 
 Type    : TYPEE                        { EmptyT }
@@ -80,6 +80,11 @@ Defs    : Defexp Defs                  { $1 : $2 }
         |                              { [] }
      
 {
+
+natToSuc :: Int -> LamTerm
+natToSuc 0 = LZero
+natToSuc n = LSuc $ natToSuc (n - 1)
+
 
 data ParseResult a = Ok a | Failed String
                      deriving Show                     
@@ -124,7 +129,7 @@ data Token = TVar String
                | TLet
                | TIn
                | TSuc
-               | TZero
+               | TNat Int
                | TRec
                | TNil
                | TCons
@@ -138,7 +143,7 @@ lexer cont s = case s of
                     (c:cs)
                           | isSpace c -> lexer cont cs
                           | isAlpha c -> lexVar (c:cs)
-                    ('0':cs)       -> cont TZero cs
+                          | isDigit c -> lexNat (c:cs)
                     ('-':('-':cs)) -> lexer cont $ dropWhile ((/=) '\n') cs
                     ('{':('-':cs)) -> consumirBK 0 0 cont cs	
                     ('-':('}':cs)) -> \ line -> Failed $ "Línea "++(show line)++": Comentario no abierto"
@@ -165,6 +170,8 @@ lexer cont s = case s of
                               ("cons", rest) -> cont TCons rest
                               ("RL", rest)   -> cont TRecL rest
                               (var,rest)     -> cont (TVar var) rest
+                          lexNat cs = let (n, rest) = span isDigit cs 
+                                      in  cont (TNat (read n :: Int)) rest
                           consumirBK anidado cl cont s = case s of
                               ('-':('-':cs)) -> consumirBK anidado cl cont $ dropWhile ((/=) '\n') cs
                               ('{':('-':cs)) -> consumirBK (anidado+1) cl cont cs	
