@@ -30,38 +30,39 @@ type BoundedVars = M.Map String Int
 
 
 conversionAux :: BoundedVars -> LamTerm -> Term
-conversionAux idxs (LVar x)        = case M.lookup x idxs of 
-                                      Nothing -> Free (Global x)
-                                      Just i  -> Bound i
+conversionAux idxs (LVar x)           = case M.lookup x idxs of 
+                                          Nothing -> Free (Global x)
+                                          Just i  -> Bound i
 
-conversionAux idxs (LApp lt1 lt2)  = (conversionAux idxs lt1 ) :@: 
-                                     (conversionAux idxs lt2 )  
+conversionAux idxs (LApp lt1 lt2)     = (conversionAux idxs lt1 ) :@: 
+                                        (conversionAux idxs lt2 )  
 
-conversionAux idxs (LAbs x t lt)  = let
-                                       idxs'  = M.map succ idxs
-                                       idxs'' = M.insert x 0 idxs'
-                                    in Lam t (conversionAux idxs'' lt) 
+conversionAux idxs (LAbs x t lt)      = let
+                                          idxs'  = M.map succ idxs
+                                          idxs'' = M.insert x 0 idxs'
+                                        in Lam t (conversionAux idxs'' lt) 
 
-conversionAux idxs (LLet x lt1 lt2) = let 
+conversionAux idxs (LLet x lt1 lt2)   = let 
                                           idxs'  = M.map succ idxs
                                           idxs'' = M.insert x 0 idxs' 
-                                      in  Let (conversionAux idxs lt1) (conversionAux idxs'' lt2)  
+                                        in
+                                          Let (conversionAux idxs lt1) (conversionAux idxs'' lt2)  
 
-conversionAux idxs (LZero)           = Zero
-conversionAux idxs (LSuc t)          = Suc (conversionAux idxs t)
-conversionAux idxs (LRec t1 t2 t3)   = Rec t1' t2' t3' 
-                                      where 
-                                        t1' = conversionAux idxs t1 
-                                        t2' = conversionAux idxs t2 
-                                        t3' = conversionAux idxs t3 
+conversionAux idxs (LZero)            = Zero
+conversionAux idxs (LSuc t)           = Suc (conversionAux idxs t)
+conversionAux idxs (LRec t1 t2 t3)    = Rec t1' t2' t3' 
+                                        where 
+                                          t1' = conversionAux idxs t1 
+                                          t2' = conversionAux idxs t2 
+                                          t3' = conversionAux idxs t3 
 
 conversionAux idxs LNil  = Nil
-conversionAux idxs (LCons t1 t2) = Cons (conversionAux idxs t1) (conversionAux idxs t2)
-conversionAux idxs (LRecL t1 t2 t3) = RecL t1' t2' t3'
-                                      where
-                                        t1' = conversionAux idxs t1 
-                                        t2' = conversionAux idxs t2 
-                                        t3' = conversionAux idxs t3 
+conversionAux idxs (LCons t1 t2)      = Cons (conversionAux idxs t1) (conversionAux idxs t2)
+conversionAux idxs (LRecL t1 t2 t3)   = RecL t1' t2' t3'
+                                        where
+                                          t1' = conversionAux idxs t1 
+                                          t2' = conversionAux idxs t2 
+                                          t3' = conversionAux idxs t3 
 
 ----------------------------
 
@@ -103,29 +104,29 @@ quoteL (VCons nv lv) = Cons (quoteN nv) (quoteL lv)
 
 -- evalúa un término en un entorno dado
 eval :: NameEnv Value Type -> Term -> Value
-eval _ (Bound j) = error "error: evaluating bounded variable"
-eval ne (Free x) = case Prelude.lookup x ne of
-                      Nothing     -> error "error: variable not in name enviroment"
-                      Just (v, t) -> v 
+eval _ (Bound j)        = error "error: evaluating bounded variable"
+eval ne (Free x)        = case Prelude.lookup x ne of
+                            Nothing     -> error "error: variable not in name enviroment"
+                            Just (v, t) -> v 
 
-eval _ (Lam t f  ) = VLam t f
+eval _ (Lam t f  )      = VLam t f
 
-eval ne (t1 :@: t2) = let
-                        (Lam t f) = quote (eval ne t1)
-                        t2'       = quote (eval ne t2)
-                        tsub      = sub 0 t2' f 
-                      in eval ne tsub
+eval ne (t1 :@: t2)     = let
+                            (Lam t f) = quote (eval ne t1)
+                            t2'       = quote (eval ne t2)
+                            tsub      = sub 0 t2' f 
+                          in eval ne tsub
 
-eval ne (Let t1 t2) = let
-                        t1'  = quote (eval ne t1)
-                        tsub = sub 0 t1' t2
-                      in
-                        eval ne tsub
+eval ne (Let t1 t2)     = let
+                            t1'  = quote (eval ne t1)
+                            tsub = sub 0 t1' t2
+                          in
+                            eval ne tsub
 
 
-eval _ Zero            = VNum NZero
-eval ne (Suc t)        = VNum (NSuc n) where (VNum n) = eval ne t
-eval ne (Rec t1 t2 t3) = case eval ne t3 of
+eval _ Zero             = VNum NZero
+eval ne (Suc t)         = VNum (NSuc n) where (VNum n) = eval ne t
+eval ne (Rec t1 t2 t3)  = case eval ne t3 of
                             VNum NZero     -> eval ne t1
                             VNum (NSuc nv) -> eval ne (t2 :@: Rec t1 t2 t :@: t) 
                                               where t = quoteN nv
@@ -182,54 +183,65 @@ notfoundError n = err $ show n ++ " no está definida."
 
 -- infiere el tipo de un término a partir de un entorno local de variables y un entorno global
 infer' :: Context -> NameEnv Value Type -> Term -> Either String Type
-infer' c _ (Bound i) = ret (c !! i)
-infer' _ e (Free  n) = case Prelude.lookup n e of 
-  Nothing     -> notfoundError n
-  Just (_, t) -> ret t
-infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
-  case tt of
-    FunT t1 t2 -> if (tu == t1) then ret t2 else matchError t1 tu
-    _          -> notfunError tt
+infer' c _ (Bound i)        = ret (c !! i)
+infer' _ e (Free  n)        = case Prelude.lookup n e of 
+                                Nothing     -> notfoundError n
+                                Just (_, t) -> ret t
 
-infer' c e (Lam t u)   = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
-infer' c e (Let t1 t2) = infer' c e t1 >>= \tt1 -> infer' (tt1 : c) e t2 >>= \tt2 -> ret tt2
+infer' c e (t :@: u)        = infer' c e t >>= \tt ->
+                              infer' c e u >>= \tu ->
+                              case tt of
+                                FunT t1 t2 -> if (tu == t1)
+                                              then ret t2
+                                              else matchError t1 tu
+                                _          -> notfunError tt
 
-infer' c e Zero        = ret NatT
-infer' c e (Suc t) = infer' c e t >>= \tt ->
-  case tt of 
-    NatT -> ret NatT
-    tt   -> matchError NatT tt
+infer' c e (Lam t u)        = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
+infer' c e (Let t1 t2)      = infer' c e t1 >>= \tt1 ->
+                              infer' (tt1 : c) e t2  >>= \tt2 ->
+                              ret tt2
 
-infer' c e (Rec t1 t2 t3) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
-  infer' c e t3 >>= \tt3 ->
-    if (tt3 /= NatT) then matchError NatT tt3  
-                     else case tt2 of 
-                        (FunT  x (FunT y z)) -> if (x == tt1 && y == NatT && z == tt1)
-                                                then ret tt1
-                                                else matchError t tt2     
-                          where t = (FunT tt1 (FunT NatT tt1))
+infer' c e Zero             = ret NatT
+infer' c e (Suc t)          = infer' c e t >>= \tt ->
+                                case tt of 
+                                  NatT -> ret NatT
+                                  tt   -> matchError NatT tt
 
-                        _                    -> notKArgError tt2 2
+infer' c e (Rec t1 t2 t3)   = infer' c e t1 >>= \tt1 ->
+                              infer' c e t2 >>= \tt2 ->
+                              infer' c e t3 >>= \tt3 ->
+                              if (tt3 /= NatT)  then matchError NatT tt3  
+                                                else case tt2 of 
+                                                  (FunT  x (FunT y z)) -> if (x == tt1 && y == NatT && z == tt1)
+                                                                          then ret tt1
+                                                                          else matchError t tt2     
+                                                                          where t = (FunT tt1 (FunT NatT tt1))
+                                                  _                    -> notKArgError tt2 2
 
+infer' c e Nil              = ret ListT
+infer' c e (Cons t1 t2)     = infer' c e t1 >>= \tt1 ->
+                              infer' c e t2 >>= \tt2 ->
+                              case tt1 of 
+                                NatT -> if (tt2 == ListT)
+                                        then ret tt2
+                                        else matchError ListT tt2
+                                _    -> matchError NatT tt1 
 
+infer' c e (RecL t1 t2 t3)  = infer' c e t1 >>= \tt1 ->
+                              infer' c e t2 >>= \tt2 ->
+                              infer' c e t3 >>= \tt3 -> 
+                              if (tt3 /= ListT)
+                              then matchError ListT tt3
+                              else case tt2 of
+                                    (FunT x (FunT y (FunT z r))) -> if match
+                                                                    then ret tt1
+                                                                    else matchError t tt2
+                                                                    where match = (x == NatT)
+                                                                                  && (y == ListT)
+                                                                                  && (z == tt1)
+                                                                                  && (r == tt1)
+                                                                          t = FunT NatT
+                                                                                   (FunT ListT (FunT tt1 tt1))
 
-infer' c e Nil          = ret ListT
-infer' c e (Cons t1 t2) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
-  case tt1 of 
-    NatT -> if (tt2 == ListT) then ret tt2 else matchError ListT tt2
-
-    _    -> matchError NatT tt1 
-
-
-infer' c e (RecL t1 t2 t3) = infer' c e t1 >>= \tt1 -> infer' c e t2 >>= \tt2 ->
-  infer' c e t3 >>= \tt3 -> 
-    if (tt3 /= ListT) then matchError ListT tt3
-    
-    else case tt2 of
-      (FunT x (FunT y (FunT z r))) -> if match then ret tt1 else matchError t tt2
-  
-        where match = (x == NatT) && (y == ListT) && (z == tt1) && (r == tt1)
-              t = FunT NatT (FunT ListT (FunT tt1 tt1))
-
-      _ -> notKArgError tt2 3
+                                    _ -> notKArgError tt2 3
 
