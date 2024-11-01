@@ -187,7 +187,7 @@ infer' c _ (Bound i)        = ret (c !! i)
 infer' _ e (Free  n)        = case Prelude.lookup n e of 
                                 Nothing     -> notfoundError n
                                 Just (_, t) -> ret t
-
+ 
 infer' c e (t :@: u)        = infer' c e t >>= \tt ->
                               infer' c e u >>= \tu ->
                               case tt of
@@ -196,7 +196,9 @@ infer' c e (t :@: u)        = infer' c e t >>= \tt ->
                                               else matchError t1 tu
                                 _          -> notfunError tt
 
-infer' c e (Lam t u)        = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
+infer' c e (Lam t u)        = infer' (t : c) e u >>= \tu ->
+                              ret $ FunT t tu
+
 infer' c e (Let t1 t2)      = infer' c e t1 >>= \tt1 ->
                               infer' (tt1 : c) e t2  >>= \tt2 ->
                               ret tt2
@@ -230,18 +232,18 @@ infer' c e (Cons t1 t2)     = infer' c e t1 >>= \tt1 ->
 infer' c e (RecL t1 t2 t3)  = infer' c e t1 >>= \tt1 ->
                               infer' c e t2 >>= \tt2 ->
                               infer' c e t3 >>= \tt3 -> 
-                              if (tt3 /= ListT)
-                              then matchError ListT tt3
-                              else case tt2 of
-                                    (FunT x (FunT y (FunT z r))) -> if match
-                                                                    then ret tt1
-                                                                    else matchError t tt2
-                                                                    where match = (x == NatT)
-                                                                                  && (y == ListT)
-                                                                                  && (z == tt1)
-                                                                                  && (r == tt1)
-                                                                          t = FunT NatT
-                                                                                   (FunT ListT (FunT tt1 tt1))
+                              if    (tt3 /= ListT)
+                              then  matchError ListT tt3
+                              else  case tt2 of
+                                      (FunT x (FunT y (FunT z r)))  ->  if match
+                                                                        then ret tt1
+                                                                        else matchError t tt2
+                                                                        where match = (x == NatT)  &&
+                                                                                      (y == ListT) &&
+                                                                                      (z == tt1)   &&
+                                                                                      (r == tt1)
+                                                                              t     = FunT NatT
+                                                                                           (FunT ListT (FunT tt1 tt1))
 
-                                    _ -> notKArgError tt2 3
+                                      _                             ->  notKArgError tt2 3
 
