@@ -56,7 +56,7 @@ conversionAux idxs (LRec t1 t2 t3)    = Rec t1' t2' t3'
                                           t2' = conversionAux idxs t2 
                                           t3' = conversionAux idxs t3 
 
-conversionAux idxs LNil  = Nil
+conversionAux idxs LNil               = Nil
 conversionAux idxs (LCons t1 t2)      = Cons (conversionAux idxs t1) (conversionAux idxs t2)
 conversionAux idxs (LRecL t1 t2 t3)   = RecL t1' t2' t3'
                                         where

@@ -56,7 +56,7 @@ pp ii vs (Rec t1 t2 t3) =
     <+> parensIf (needParens t2) (pp ii vs t2)
     <+> parensIf (needParens t3) (pp ii vs t3)
 
-pp _ _ Nil       = text "nil"
+pp _ _ Nil            = text "nil"
 pp ii vs (Cons t1 t2) = 
   text "cons" 
     <+> parensIf (needParens t1) (pp ii vs t1)
